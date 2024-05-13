@@ -16,6 +16,9 @@ ui <- dashboardPage(
   dashboardBody(
     tabItems(
       tabItem(tabName = "upload",
+              h4("You can load example data by clicking below,"),
+              actionButton(label="Load example data", inputId = "loadExample"),
+              h4("Or upload your own CSV file or paste CSV data below."),
               fileInput("file", "Upload CSV", accept = ".csv"),
               textAreaInput("csvText", "Or paste CSV data here", rows = 10)
       ),
@@ -27,7 +30,7 @@ ui <- dashboardPage(
       ),
       tabItem(tabName = "results",
               downloadButton("downloadReport", "Download Report"),
-              uiOutput("plots")
+              uiOutput("plots"),
       )
     )
   )
@@ -40,6 +43,10 @@ server <- function(input, output, session) {
       read.csv(input$file$datapath, stringsAsFactors = FALSE)
     } else if (input$csvText != "") {
       read.csv(text = input$csvText, stringsAsFactors = FALSE)
+    }
+    else if (!is.null(input$loadExample)) {
+      load('./data/gsea_example.rda')
+      gsea_example
     }
   })
   
@@ -66,7 +73,6 @@ server <- function(input, output, session) {
     })
     do.call(tagList, plot_output_list)
   })
-  
   output$plot1 <- renderPlot({
     req(analysis())
     analysis()$plot1
