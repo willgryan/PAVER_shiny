@@ -233,11 +233,11 @@
       "Version": "0.0.0.9000",
       "Source": "GitHub",
       "RemoteType": "github",
-      "RemoteHost": "api.github.com",
-      "RemoteRepo": "PAVER",
       "RemoteUsername": "willgryan",
+      "RemoteRepo": "PAVER",
       "RemoteRef": "HEAD",
-      "RemoteSha": "abfbc757f5ad77f26146959c6381140eb9b4c55d",
+      "RemoteSha": "933bbe1466c00c325ee23d98e6df1a2f86b637c0",
+      "RemoteHost": "api.github.com",
       "Requirements": [
         "ComplexHeatmap",
         "R",
@@ -261,7 +261,7 @@
         "tidyr",
         "umap"
       ],
-      "Hash": "72cf039a9050c43af84b6582d4f29056"
+      "Hash": "5a4fef8e6b2f91ccbe7b010d52f6ad47"
     },
     "R6": {
       "Package": "R6",
