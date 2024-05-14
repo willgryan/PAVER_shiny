@@ -4,6 +4,8 @@ library(shinydashboard)
 library(PAVER)
 library(shinyjs)
 
+set.seed(123)
+
 # UI
 ui <- dashboardPage(
   dashboardHeader(title = "PAVER"),
@@ -19,28 +21,37 @@ ui <- dashboardPage(
       tabItem(
         tabName = "about",
         h4("About PAVER"),
-        p("PAVER (Pathway Analysis Visualization with Embedding Representations) is a bioinformatics tool to help interpret and visualize pathway analysis results."),
-        p("To use the app, follow these steps:"),
+        p("PAVER (Pathway Analysis Visualization with Embedding Representations) is a bioinformatics tool to help interpret and visualize pathway analysis results from omics studies."),
+        p("To use the app, please follow these steps:"),
         tags$ol(
           tags$li("Navigate to the 'Upload Data' tab to upload your CSV file or paste CSV data directly into the text area."),
           tags$li("Go to the 'Settings' tab to select your desired pre-computed embedding package and adjust clustering settings."),
           tags$li("Click the 'Submit' button to start the analysis."),
           tags$li("View and download the generated plots and clustering results from the 'Results' tab.")
-        )
+        ),
+        p("For more detailed information on PAVER and its functionalities, please refer to the article on the",
+          tags$a(href = "https://cdrl-ut.org/project/projects_and_posters/paver/", "Cognitive Disorders Research Laboratory (CDRL)"),
+          " website.")
       ),
       tabItem(
         tabName = "upload",
         h4("Upload your own CSV file or paste CSV data below."),
         fileInput("file", NULL, accept = ".csv"),
         textAreaInput("csvText", NULL, rows = 10),
-        actionButton(label = "Load example data", inputId = "loadExample")
+        actionButton(label = "Load example GSEA data", inputId = "loadExampleGSEA"),
+        actionButton(label = "Load example KEGG data", inputId = "loadExampleKEGG")
+        
       ),
       tabItem(
         tabName = "settings",
-        selectInput("embeddingPackage", "Choose Embedding", choices = c("Gene Ontology", "KEGG")),
+        p("Select the appropriate pre-computed embeddings for your pathways used for input."),
+        selectInput("embeddingPackage", "Choose Embedding", choices = c("GO_OpenAI_2_14_24", "GO_anc2vec_2_14_24", "GO_anc2vec_3_06_23", "KEGG_OpenAI_8_25_23")),
+        p("This controls the minimum number of pathways that can be considered a cluster."),
         sliderInput("minClusterSize", "minClusterSize", min = 3, max = 100, value = 3),
-        sliderInput("maxCoreScatter", "maxCoreScatter", min = .1, max = .99, value = .33),
-        actionButton("submit", "Submit")
+        p("This controls the granularity of the clustering. Smaller numbers will produce less, broader clusters while larger numbers will produce more, specific clusters."),
+        sliderInput("maxCoreScatter", "maxCoreScatter", min = .1, max = .99, value = .55),
+        p("After clicking submit, navigate to the 'Results' tab to view clustering results."),
+        actionButton("submit", "Submit"),
       ),
       tabItem(
         tabName = "results",
@@ -58,11 +69,26 @@ server <- function(input, output, session) {
     if (input$csvText != "") read_csv(input$csvText)
   })
   
+  observe({
+    if (input$csvText != "" | !is.null(input$file)) {
+      shinyjs::enable("submit")
+    } else {
+      shinyjs::disable("submit")
+    }
+  })
+  
   shinyjs::disable("downloadReport")
   shinyjs::disable("downloadResults")
+  shinyjs::disable("submit")
   
-  observeEvent(input$loadExample, {
+  observeEvent(input$loadExampleGSEA, {
     example_data <- PAVER::gsea_example %>% filter(across(everything(), ~ . != 0))
+    example_text <- capture.output(write.csv(example_data, row.names = FALSE, quote = FALSE))
+    updateTextAreaInput(session, "csvText", value = paste(example_text, collapse = "\n"))
+  })
+  
+  observeEvent(input$loadExampleKEGG, {
+    example_data <- PAVER::kegg_example %>% filter(across(everything(), ~ . != 0))
     example_text <- capture.output(write.csv(example_data, row.names = FALSE, quote = FALSE))
     updateTextAreaInput(session, "csvText", value = paste(example_text, collapse = "\n"))
   })
@@ -76,16 +102,35 @@ server <- function(input, output, session) {
   
   analysis <- eventReactive(input$submit, {
     req(data())
+    
     shinyjs::disable("submit")
     shinyjs::disable("downloadReport")
     shinyjs::disable("downloadResults")
     shinyjs::hide("plots")
     
     withProgress(message = 'Grabbing embeddings...', value = 0, {
-      embeddings_url <- "https://github.com/willgryan/PAVER_embeddings/raw/main/2023-03-06/embeddings_2023-03-06.RDS"
-      term2name_url <- "https://github.com/willgryan/PAVER_embeddings/raw/main/2023-03-06/term2name_2023-03-06.RDS"
-      embeddings <- readRDS(url(embeddings_url))
-      term2name <- readRDS(url(term2name_url))
+      if(input$embeddingPackage == "GO_OpenAI_2_14_24") {
+        embeddings_url <- "data/embeddings/go/GO_embeddings_text-embedding-3-large_2_14_24_pca200n.rds"
+        term2name_url <- "data/embeddings/go/GO_embeddings_text-embedding-3-large_2_14_24_term2name.rds"
+      }
+      
+      if(input$embeddingPackage == "GO_anc2vec_2_14_24") {
+        embeddings_url <- "data/embeddings/go/anc2vec_2_14_24.rds"
+        term2name_url <- "data/embeddings/go/anc2vec_2_14_24_term2name.rds"
+      }
+      
+      if(input$embeddingPackage == "GO_anc2vec_3_06_23") {
+        embeddings_url <- "data/embeddings/go/anc2vec_2023_03_06.rds"
+        term2name_url <- "data/embeddings/go/anc2vec_term2name_2023-03-06.RDS"
+      }
+      
+      if(input$embeddingPackage == "KEGG_OpenAI_8_25_23") {
+        embeddings_url <- "data/embeddings/kegg/KEGG_embeddings_text-embedding-ada-002_8_25_23.rds"
+        term2name_url <- "data/embeddings/kegg/KEGG_embeddings_text-embedding-ada-002_8_25_23_term2name.rds"
+      }
+      
+      embeddings <- readRDS(embeddings_url)
+      term2name <- readRDS(term2name_url)
       
       incProgress(0.2, detail = "Preparing data...")
       PAVER_result <- PAVER::prepare_data(data(), embeddings, term2name)
